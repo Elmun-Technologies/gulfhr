@@ -5,10 +5,33 @@
 # Bu app Gulf HR Telegram boti: long-polling — web server / http_service
 # kerak emas. Nomzodlarni vakansiya talablari bo'yicha saralaydi
 # (Sotuv menejeri / B2B menejer) va HR guruhiga kartalarni yuboradi.
+#
+# Deploy qilish bosqichlari (to'liq yo'riqoma: DEPLOY_FLY.md):
+#   1. fly launch --no-deploy          # app yaratadi (nom band bo'lsa o'zgartiring)
+#   2. fly volumes create gulf_hr_data --region ams --size 1
+#   3. fly secrets set BOT_TOKEN=... CANDIDATES_CHAT_ID=...
+#   4. fly deploy
 app = 'gulf-hr'
 primary_region = 'ams'
 
 [build]
+
+[env]
+  TZ = 'Asia/Tashkent'
+  LOG_LEVEL = 'INFO'
+
+# SIGINT — aiogram long-polling'ni toza to'xtatadi (bot nomzod
+# yozishmalari tugagach chiqadi).
+kill_signal = 'SIGINT'
+kill_timeout = '10s'
+
+# SQLite bazasi (/app/data/gulf_hr.db) doimiy volume'da saqlanadi —
+# deploy'dan keyin ham arizalar va /stats analitikasi yo'qolmaydi.
+# Volume'ni deploy'dan OLDIN yarating:
+#   fly volumes create gulf_hr_data --region ams --size 1
+[[mounts]]
+  source = 'gulf_hr_data'
+  destination = '/app/data'
 
 [[vm]]
   cpus = 1
