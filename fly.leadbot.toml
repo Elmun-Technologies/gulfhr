@@ -1,0 +1,23 @@
+# Facebook lead-bot uchun Fly.io konfiguratsiyasi.
+# Deploy: flyctl deploy -c fly.leadbot.toml --dockerfile leadbot/Dockerfile
+#
+# app nomini fly.io'da band bo'lmagan nomga o'zgartiring (flyctl launch birinchi
+# marta so'raydi, keyingi deploy'larda shu fayldagi nom ishlatiladi).
+app = "gulf-leadbot"
+primary_region = "arn"
+kill_signal = "SIGINT"
+kill_timeout = "5s"
+
+[build]
+
+[env]
+LOG_LEVEL = "INFO"
+[mounts]
+  source = "leadbot_data"
+  destination = "/app/data"
+[processes]
+app = "python -m leadbot.main"
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "256mb"
