@@ -1,10 +1,10 @@
-# fly.toml app configuration file generated for gulf-hr on 2026-09-15T00:00:00Z
+# fly.toml app configuration file generated for gulf-hr on 2026-09-16T00:00:00Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 # Bu app Gulf HR Telegram boti: long-polling — web server / http_service
-# kerak emas. Nomzodlarni vakansiya talablari bo'yicha saralaydi (asosiy
-# foydalanuvchi oqimi) va sozlangan bo'lsa amoCRM jarayon nazoratini olib boradi.
+# kerak emas. Nomzodlarni vakansiya talablari bo'yicha saralaydi
+# (Sotuv menejeri / B2B menejer) va HR guruhiga kartalarni yuboradi.
 app = 'gulf-hr'
 primary_region = 'ams'
 

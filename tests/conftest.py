@@ -10,7 +10,6 @@ os.environ.setdefault("BOT_TOKEN", "test-token")
 # muammoli), shuning uchun testlar uchun vaqtinchalik fayl bazadan foydalanamiz.
 _TMP_DB = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 os.environ.setdefault("DATABASE_URL", f"sqlite+aiosqlite:///{_TMP_DB.name}")
-os.environ.setdefault("WEB_ENABLED", "false")
 
 import pytest_asyncio
 

@@ -19,5 +19,5 @@ def setup_logging(level: str = "INFO") -> None:
     root.addHandler(handler)
     root.setLevel(level.upper())
 
-    for noisy in ("httpx", "httpcore", "aiosqlite", "apscheduler.executors.default"):
+    for noisy in ("aiosqlite",):
         logging.getLogger(noisy).setLevel(logging.WARNING)

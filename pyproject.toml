@@ -1,7 +1,7 @@
 [project]
 name = "gulf-hr-bot"
 version = "1.0.0"
-description = "Gulf HR — amoCRM jarayon nazorati va sotuvchilar target boti"
+description = "Gulf HR — nomzodlarni vakansiya talablari bo'yicha saralash Telegram boti"
 requires-python = ">=3.11"
 
 [tool.ruff]
