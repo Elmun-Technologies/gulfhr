@@ -83,10 +83,12 @@ HR guruhiga yuboriladi.
    python -m app.main
    ```
 
-   **Fly.io'da:**
+   **Fly.io'da** (batafsil yo'riqoma: **`DEPLOY_FLY.md`** — Vercel
+   ishlamaydi, chunki bot long-polling va doimiy jarayon talab qiladi):
    ```bash
-   fly launch -c fly.toml   # app nomi: gulf-hr
-   fly secrets set          # BOT_TOKEN va qolgan .env qiymatlari
+   fly launch --no-deploy          # app nomi: gulf-hr
+   fly volumes create gulf_hr_data --region ams --size 1
+   fly secrets set BOT_TOKEN=... CANDIDATES_CHAT_ID=...
    fly deploy
    ```
 
