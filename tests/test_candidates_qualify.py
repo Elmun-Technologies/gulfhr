@@ -12,6 +12,7 @@ def _answers(**overrides) -> CandidateAnswers:
         age=22,
         lives_in_city=True,
         phone="+998901234567",
+        knows_russian=True,
         experience="2 yil sotuvchi",
         resume_info="",
     )
@@ -72,5 +73,29 @@ def test_gender_and_experience_do_not_affect_verdict() -> None:
         min_age=18,
         max_age=30,
         required_city="Toshkent",
+    )
+    assert verdict.is_qualified
+
+
+def test_russian_required_rejects_when_not_known() -> None:
+    verdict = qualify_candidate(
+        _answers(knows_russian=False),
+        min_age=18,
+        max_age=30,
+        required_city="Toshkent",
+        russian_required=True,
+    )
+    assert not verdict.is_qualified
+    assert verdict.reject_codes == ("russian",)
+    assert any("Rus tili" in r for r in verdict.reasons)
+
+
+def test_russian_not_required_does_not_affect_verdict() -> None:
+    verdict = qualify_candidate(
+        _answers(knows_russian=False),
+        min_age=18,
+        max_age=30,
+        required_city="Toshkent",
+        russian_required=False,
     )
     assert verdict.is_qualified

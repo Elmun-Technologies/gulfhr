@@ -9,6 +9,7 @@ WELCOME = (
     "Sotuv menejeri / B2B menejer vakansiyasiga murojaat qilganingiz uchun rahmat.\n\n"
     "🧑🏻‍💼 Lavozim: Sotuv menejeri / B2B menejer\n"
     "🏢 Yo'nalish: oziq-ovqat ingredientlarini B2B yetkazib berish\n"
+    "🗣 Til: rus tili (majburiy)\n"
     "📌 Manzil: Toshkent\n\n"
     "Talablarga mos kelishini bilish uchun bir nechta savol beraman. "
     "Javoblaringiz to'g'ridan-to'g'ri HR bo'limiga yuboriladi."
@@ -19,17 +20,18 @@ ASK_GENDER = "2️⃣ Jinsingizni tanlang:"
 ASK_AGE = "3️⃣ Necha yoshdasiz? (faqat raqamda, masalan: 22)"
 ASK_AGE_INVALID = "Iltimos, yoshingizni faqat raqamda kiriting (masalan: 22)."
 ASK_CITY = "4️⃣ Doimiy {city}da istiqomat qilasizmi? (Yotoqxona berilmaydi)"
+ASK_RUSSIAN = "5️⃣ Rus tilini bilasizmi? (bu vakansiya uchun majburiy)"
 ASK_PHONE = (
-    "5️⃣ Telefon raqamingizni yuboring — pastdagi tugma orqali yoki qo'lda kiriting "
+    "6️⃣ Telefon raqamingizni yuboring — pastdagi tugma orqali yoki qo'lda kiriting "
     "(masalan: +998901234567):"
 )
 ASK_PHONE_INVALID = "Telefon raqami noto'g'ri formatda. Masalan: +998901234567"
 ASK_EXPERIENCE = (
-    "6️⃣ Ish tajribangiz (staj) bormi? Qisqacha yozib bering:\n"
+    "7️⃣ Ish tajribangiz (staj) bormi? Qisqacha yozib bering:\n"
     "(Masalan: \"2 yil sotuv menejeri\", \"1 yil B2B savdo\", \"tajribam yo'q\")"
 )
 ASK_RESUME = (
-    "7️⃣ Rezume yoki tajribangiz haqida ovozli xabar (golos) yuborishingiz mumkin.\n"
+    "8️⃣ Rezume yoki tajribangiz haqida ovozli xabar (golos) yuborishingiz mumkin.\n"
     "Shuningdek, fayl (PDF, DOC) ko'rinishida ham yuborishingiz mumkin.\n\n"
     "Agar yubormoqchi bo'lmasangiz, pastdagi tugmani bosing 👇"
 )

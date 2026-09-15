@@ -161,14 +161,16 @@ Facebook reklama → "Botga yozish" tugmasi → Telegram bot (t.me/BOTUSERNAME)
 
 ```
 1️⃣ Ism → 2️⃣ Jins (👨 Erkak / 👩 Ayol tugmalari) → 3️⃣ Yosh →
-4️⃣ Shahar (Ha/Yo'q) → 5️⃣ Telefon → 6️⃣ Staj (matn yozadi) →
-7️⃣ Rezume (fayl PDF/DOC yoki golos — ovozli xabar) → ✅ Natija
+4️⃣ Shahar (Ha/Yo'q) → 5️⃣ Rus tili (Ha/Yo'q — majburiy) → 6️⃣ Telefon →
+7️⃣ Staj (matn yozadi) → 8️⃣ Rezume (fayl PDF/DOC yoki golos — ovozli xabar) → ✅ Natija
 ```
 
 Ish grafigi bo'yicha savol berilmaydi. Yosh chegarasi **18-30**
 (`CANDIDATE_MIN_AGE` / `CANDIDATE_MAX_AGE`), shahar talabi
 `CANDIDATE_CITY` (default: Toshkent) — ikkalasi ham `.env` orqali
-o'zgartiriladi.
+o'zgartiriladi. **Rus tilini bilish majburiy talab**
+(`CANDIDATE_RUSSIAN_REQUIRED`, default: `true`) — nomzod "Yo'q" degan
+taqdirda ariza rad etiladi, sabab "Rus tilini bilish majburiy talab".
 
 ### Ishga tushirish
 
@@ -184,6 +186,7 @@ o'zgartiriladi.
    CANDIDATE_MIN_AGE=18
    CANDIDATE_MAX_AGE=30
    CANDIDATE_CITY=Toshkent
+   CANDIDATE_RUSSIAN_REQUIRED=true
    ```
    `CANDIDATES_CHAT_ID` bo'sh qoldirilsa `MANAGEMENT_CHAT_ID`, undan keyin
    `LEAD_GROUP_CHAT_ID` (eski sozlama) ishlatiladi.
@@ -221,6 +224,7 @@ bo'lmasa ham) `/stats` buyrug'ini yuborib, umumiy statistikani ko'ra oladi:
 🚫 Rad etish sabablari:
 • Yosh chegarasidan tashqari: 12
 • Toshkentda yashamaydi: 6
+• Rus tilini bilmaydi: 4
 
 🕘 Oxirgi 10 nomzod:
 🟢 Aliyev Vali (Erkak) — 22 yosh
@@ -235,11 +239,12 @@ etiladi.
 ### Talab mezonlarini o'zgartirish
 
 Savollar va matnlar `app/candidates/texts.py` da, saralash mantig'i
-`app/candidates/qualify.py` da — yosh chegarasi va shahar talabi `.env`
-orqali (`CANDIDATE_MIN_AGE`, `CANDIDATE_MAX_AGE`, `CANDIDATE_CITY`)
-sozlanadi. Boshqa vakansiya uchun savol qo'shish kerak bo'lsa,
-`app/candidates/states.py` ga yangi holat, `app/bot/handlers/candidates.py`
-ga tegishli handler qo'shiladi.
+`app/candidates/qualify.py` da — yosh chegarasi, shahar talabi va rus
+tili sharti `.env` orqali (`CANDIDATE_MIN_AGE`, `CANDIDATE_MAX_AGE`,
+`CANDIDATE_CITY`, `CANDIDATE_RUSSIAN_REQUIRED`) sozlanadi. Boshqa
+vakansiya uchun savol qo'shish kerak bo'lsa, `app/candidates/states.py` ga
+yangi holat, `app/bot/handlers/candidates.py` ga tegishli handler
+qo'shiladi.
 
 ### Eski mustaqil lead-bot (noyob)
 

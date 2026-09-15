@@ -1,7 +1,7 @@
 """Nomzodlarni vakansiya talablari bo'yicha saralash — ariza oqimi.
 
-Oqim: ism → jins (tugma) → yosh → shahar → telefon → staj (matn) →
-rezume (fayl/golos) → natija. Ish grafigi savoli yo'q.
+Oqim: ism → jins (tugma) → yosh → shahar → rus tili (tugma, majburiy) →
+telefon → staj (matn) → rezume (fayl/golos) → natija. Ish grafigi savoli yo'q.
 
 Har bir ariza bazaga saqlanadi; to'liq karta (rezume fayli bilan) HR
 guruhiga yuboriladi. HR guruhida /stats bilan analitika chiqadi.
@@ -160,13 +160,27 @@ async def on_age(message: Message, state: FSMContext) -> None:
 async def on_city(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(lives_in_city=callback.data == "cand_yes")
     await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.message.answer(texts.ASK_RUSSIAN, reply_markup=YES_NO_KB)
+    await state.set_state(ApplicationStates.russian)
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------- #
+# 5. Rus tili (majburiy talab)
+# ---------------------------------------------------------------------- #
+
+
+@router.callback_query(ApplicationStates.russian, F.data.in_({"cand_yes", "cand_no"}))
+async def on_russian(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.update_data(knows_russian=callback.data == "cand_yes")
+    await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer(texts.ASK_PHONE, reply_markup=CONTACT_KB)
     await state.set_state(ApplicationStates.phone)
     await callback.answer()
 
 
 # ---------------------------------------------------------------------- #
-# 5. Telefon
+# 6. Telefon
 # ---------------------------------------------------------------------- #
 
 
@@ -195,7 +209,7 @@ async def on_phone_text(message: Message, state: FSMContext) -> None:
 
 
 # ---------------------------------------------------------------------- #
-# 6. Ish tajribasi (staj) — yozadigan
+# 7. Ish tajribasi (staj) — yozadigan
 # ---------------------------------------------------------------------- #
 
 
@@ -211,7 +225,7 @@ async def on_experience(message: Message, state: FSMContext) -> None:
 
 
 # ---------------------------------------------------------------------- #
-# 7. Rezume — fayl (PDF/DOC) yoki golos (ovozli xabar)
+# 8. Rezume — fayl (PDF/DOC) yoki golos (ovozli xabar)
 # ---------------------------------------------------------------------- #
 
 
@@ -279,6 +293,7 @@ async def _finish(message: Message, state: FSMContext) -> None:
         age=data.get("age", 0),
         lives_in_city=data.get("lives_in_city", False),
         phone=data.get("phone", ""),
+        knows_russian=data.get("knows_russian", False),
         experience=data.get("experience", ""),
         resume_info=data.get("resume_info", ""),
     )
@@ -287,6 +302,7 @@ async def _finish(message: Message, state: FSMContext) -> None:
         min_age=settings.candidate_min_age,
         max_age=settings.candidate_max_age,
         required_city=settings.candidate_city,
+        russian_required=settings.candidate_russian_required,
     )
 
     if verdict.is_qualified:

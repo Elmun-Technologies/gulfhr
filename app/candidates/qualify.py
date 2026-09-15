@@ -12,6 +12,7 @@ class CandidateAnswers:
     age: int
     lives_in_city: bool
     phone: str
+    knows_russian: bool = False
     experience: str = ""
     resume_info: str = ""
 
@@ -24,13 +25,19 @@ class Verdict:
 
 
 def qualify_candidate(
-    answers: CandidateAnswers, *, min_age: int, max_age: int, required_city: str
+    answers: CandidateAnswers,
+    *,
+    min_age: int,
+    max_age: int,
+    required_city: str,
+    russian_required: bool = False,
 ) -> Verdict:
     """Javoblarni vakansiya talablari bilan solishtiradi.
 
     Talablar:
     - yosh: `min_age`..`max_age` (default 18-30)
     - doimiy `required_city` da istiqomat (yotoqxona berilmaydi)
+    - `russian_required` bo'lsa — rus tilini bilish majburiy
 
     Jins va staj saralash mezoniga kirmaydi — ular shunchaki ma'lumot sifatida
     HR guruhiga yuboriladi.
@@ -47,5 +54,9 @@ def qualify_candidate(
             f"Doimiy {required_city}da istiqomat qilish talab etiladi (yotoqxona yo'q)"
         )
         codes.append("city")
+
+    if russian_required and not answers.knows_russian:
+        reasons.append("Rus tilini bilish majburiy talab")
+        codes.append("russian")
 
     return Verdict(is_qualified=not reasons, reasons=reasons, reject_codes=tuple(codes))

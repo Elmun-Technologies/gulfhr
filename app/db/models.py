@@ -102,6 +102,8 @@ class Application(Base):
     gender: Mapped[str] = mapped_column(String(16), default="")  # "male" | "female"
     age: Mapped[int] = mapped_column(Integer, nullable=False)
     lives_in_city: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Rus tilini bilish (vakansiya uchun majburiy talab)
+    knows_russian: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     phone: Mapped[str] = mapped_column(String(32), nullable=False)
     # Ish tajribasi (staj) — nomzod o'z so'zi bilan yozadi
     experience: Mapped[str] = mapped_column(Text, default="")

@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     candidate_max_age: int = Field(default=30, alias="CANDIDATE_MAX_AGE")
     # Nomzod doimiy istiqomat qilishi shart bo'lgan shahar
     candidate_city: str = Field(default="Toshkent", alias="CANDIDATE_CITY")
+    # Rus tilini bilish majburiy talabmi (default: ha)
+    candidate_russian_required: bool = Field(
+        default=True, alias="CANDIDATE_RUSSIAN_REQUIRED"
+    )
     # Nomzod kartasi yuboriladigan HR guruh. Bo'sh bo'lsa MANAGEMENT_CHAT_ID,
     # undan keyin LEAD_GROUP_CHAT_ID (eski Fly sozlamalari) ishlatiladi.
     candidates_chat_id: int | None = Field(default=None, alias="CANDIDATES_CHAT_ID")

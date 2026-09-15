@@ -21,6 +21,7 @@ def _answers(**overrides) -> CandidateAnswers:
         age=22,
         lives_in_city=True,
         phone="+998901234567",
+        knows_russian=True,
         experience="2 yil sotuvchi",
         resume_info="",
     )
@@ -64,6 +65,7 @@ async def test_save_application_persists_all_fields() -> None:
         assert row.gender == "male"
         assert row.age == 22
         assert row.lives_in_city is True
+        assert row.knows_russian is True
         assert row.phone == "+998901234567"
         assert row.experience == "2 yil sotuvchi"
         assert row.resume_info == "📄 Fayl: resume.pdf"
@@ -139,6 +141,7 @@ def test_group_card_qualified() -> None:
     assert "👤 Ism: Vali Karimov" in card
     assert "⚧ Jins: Erkak" in card
     assert "🎂 Yosh: 22" in card
+    assert "🗣 Rus tili: Ha" in card
     assert "📞 Telefon: +998901234567" in card
     assert "💼 Staj: 2 yil sotuvchi" in card
     assert "📎 Rezume: 🎤 Ovozli xabar yuborildi" in card

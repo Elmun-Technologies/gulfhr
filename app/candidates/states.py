@@ -10,6 +10,7 @@ class ApplicationStates(StatesGroup):
     gender = State()
     age = State()
     city = State()
+    russian = State()
     phone = State()
     experience = State()
     resume = State()

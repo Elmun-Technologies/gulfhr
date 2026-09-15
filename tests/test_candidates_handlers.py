@@ -153,10 +153,16 @@ async def test_full_qualified_flow_with_voice_resume() -> None:
     # 4. Shahar
     city_msg = FakeMessage(bot)
     await ch.on_city(FakeCallback("cand_yes", city_msg), state)
-    assert (await state.get_state()) == "ApplicationStates:phone"
-    assert "Telefon" in city_msg.answered[0][0]
+    assert (await state.get_state()) == "ApplicationStates:russian"
+    assert "Rus tili" in city_msg.answered[0][0]
 
-    # 5. Telefon
+    # 5. Rus tili (tugma orqali)
+    russian_msg = FakeMessage(bot)
+    await ch.on_russian(FakeCallback("cand_yes", russian_msg), state)
+    assert (await state.get_state()) == "ApplicationStates:phone"
+    assert "Telefon" in russian_msg.answered[0][0]
+
+    # 6. Telefon
     await ch.on_phone_text(FakeMessage(bot, "+998901234567"), state)
     assert (await state.get_state()) == "ApplicationStates:experience"
 
@@ -183,6 +189,7 @@ async def test_full_qualified_flow_with_voice_resume() -> None:
     assert row.gender == "male"
     assert row.age == 22
     assert row.lives_in_city is True
+    assert row.knows_russian is True
     assert row.phone == "+998901234567"
     assert row.experience == "2 yil sotuvchi"
     assert row.resume_file_kind == "voice"
@@ -195,6 +202,7 @@ async def test_full_qualified_flow_with_voice_resume() -> None:
     assert group_msgs[0][1] == GROUP_ID
     assert "🟢" in group_msgs[0][2]
     assert "Vali Karimov" in group_msgs[0][2]
+    assert "🗣 Rus tili: Ha" in group_msgs[0][2]
     assert ("send_voice", GROUP_ID, "voice_123") in bot.sent
 
 
@@ -207,6 +215,7 @@ async def test_rejected_flow_age_and_city() -> None:
     await ch.on_gender(FakeCallback("cand_gender:female", FakeMessage(bot)), state)
     await ch.on_age(FakeMessage(bot, "35"), state)
     await ch.on_city(FakeCallback("cand_no", FakeMessage(bot)), state)
+    await ch.on_russian(FakeCallback("cand_no", FakeMessage(bot)), state)
     await ch.on_phone_contact(
         FakeMessage(bot, contact=SimpleNamespace(phone_number="+998901234567")), state
     )
@@ -223,6 +232,7 @@ async def test_rejected_flow_age_and_city() -> None:
             [
                 "• Yosh chegarasi: 18-30 (siz: 35)",
                 "• Doimiy Toshkentda istiqomat qilish talab etiladi (yotoqxona yo'q)",
+                "• Rus tilini bilish majburiy talab",
             ]
         ),
     )
@@ -231,12 +241,45 @@ async def test_rejected_flow_age_and_city() -> None:
         rows = (await session.execute(select(Application))).scalars().all()
     assert len(rows) == 1
     assert rows[0].is_qualified is False
-    assert set(rows[0].reject_codes.split(",")) == {"age", "city"}
+    assert set(rows[0].reject_codes.split(",")) == {"age", "city", "russian"}
     assert rows[0].gender == "female"
     assert rows[0].resume_file_kind is None
 
     group_msgs = [s for s in bot.sent if s[0] == "send_message"]
     assert "🔴" in group_msgs[0][2]
+
+
+@pytest.mark.asyncio
+async def test_russian_not_known_is_rejected() -> None:
+    bot = FakeBot()
+    state = make_state()
+
+    await ch.on_full_name(FakeMessage(bot, "Malika Rahimova"), state)
+    await ch.on_gender(FakeCallback("cand_gender:female", FakeMessage(bot)), state)
+    await ch.on_age(FakeMessage(bot, "25"), state)
+    await ch.on_city(FakeCallback("cand_yes", FakeMessage(bot)), state)
+    await ch.on_russian(FakeCallback("cand_no", FakeMessage(bot)), state)
+    await ch.on_phone_text(FakeMessage(bot, "+998901234567"), state)
+    await ch.on_experience(FakeMessage(bot, "1 yil B2B savdo"), state)
+
+    skip_msg = FakeMessage(bot)
+    await ch.on_resume_skip(FakeCallback("cand_skip_resume", skip_msg), state)
+
+    result_text = skip_msg.answered[0][0]
+    assert result_text == texts.RESULT_NOT_QUALIFIED.format(
+        name="Malika Rahimova",
+        reasons="• Rus tilini bilish majburiy talab",
+    )
+
+    async with session_scope() as session:
+        rows = (await session.execute(select(Application))).scalars().all()
+    assert rows[0].is_qualified is False
+    assert rows[0].reject_codes == "russian"
+    assert rows[0].knows_russian is False
+
+    group_msgs = [s for s in bot.sent if s[0] == "send_message"]
+    assert "🔴" in group_msgs[0][2]
+    assert "🗣 Rus tili: Yo'q" in group_msgs[0][2]
 
 
 @pytest.mark.asyncio
@@ -284,6 +327,7 @@ async def test_resume_document_is_forwarded_to_group() -> None:
         gender="female",
         age=25,
         lives_in_city=True,
+        knows_russian=True,
         phone="+998901234567",
         experience="tajribam yo'q",
     )

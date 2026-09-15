@@ -37,6 +37,7 @@ async def save_application(
             gender=answers.gender,
             age=answers.age,
             lives_in_city=answers.lives_in_city,
+            knows_russian=answers.knows_russian,
             phone=answers.phone,
             experience=answers.experience,
             resume_info=answers.resume_info,
@@ -67,6 +68,7 @@ def build_group_card(
     header = GROUP_HEADER_QUALIFIED if verdict.is_qualified else GROUP_HEADER_NOT_QUALIFIED
     gender_label = GENDER_LABELS.get(answers.gender, "—")
     resume_label = answers.resume_info if answers.resume_info else "Yuborilmagan"
+    russian_label = "Ha" if answers.knows_russian else "Yo'q"
     telegram_line = "💬 Telegram: —"
     if telegram_username or telegram_id is not None:
         username = f"@{telegram_username}" if telegram_username else "—"
@@ -79,6 +81,7 @@ def build_group_card(
         f"👤 Ism: {answers.full_name}",
         f"⚧ Jins: {gender_label}",
         f"🎂 Yosh: {answers.age}",
+        f"🗣 Rus tili: {russian_label}",
         f"📞 Telefon: {answers.phone}",
         f"💼 Staj: {answers.experience if answers.experience else '—'}",
         f"📎 Rezume: {resume_label}",
@@ -217,6 +220,7 @@ async def build_candidates_report(settings: Settings) -> str:
         labels = {
             "age": "Yosh chegarasidan tashqari",
             "city": f"{city}da yashamaydi",
+            "russian": "Rus tilini bilmaydi",
         }
         lines.append("🚫 <b>Rad etish sabablari:</b>")
         for code, cnt in sorted(reject_counts.items(), key=lambda x: -x[1]):
