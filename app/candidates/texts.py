@@ -286,7 +286,8 @@ CANCELLED = UZBEK.cancelled
 
 # HR guruhiga oid matnlar — guruh tili o'zbekcha bo'lgani uchun tilga bog'liq emas.
 STATS_GROUP_ONLY = (
-    "📊 Analitikani faqat HR guruhida ko'rish mumkin. Guruhda /stats deb yozing."
+    "📊 Bu buyruq faqat sozlangan HR guruhida ishlaydi. "
+    "Guruhda /stats (yoki /stat), /diag yoki /export deb yozing."
 )
 STATS_ERROR = (
     "Kechirasiz, analitika hisobotini tuzishda xato yuz berdi. "

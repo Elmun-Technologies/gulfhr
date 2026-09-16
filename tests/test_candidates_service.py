@@ -8,7 +8,12 @@ import pytest
 from sqlalchemy import select
 
 from app.candidates.qualify import CandidateAnswers, qualify_candidate
-from app.candidates.service import build_candidates_report, build_group_card, save_application
+from app.candidates.service import (
+    build_candidates_export,
+    build_candidates_report,
+    build_group_card,
+    save_application,
+)
 from app.config import get_settings
 from app.db.models import Application
 from app.db.session import session_scope
@@ -88,6 +93,33 @@ async def test_save_rejected_application_stores_codes() -> None:
 async def test_report_empty_database() -> None:
     report = await build_candidates_report(get_settings())
     assert "Hali hech qanday ariza" in report
+
+
+@pytest.mark.asyncio
+async def test_export_is_utf8_csv_with_all_application_fields() -> None:
+    answers = _answers(
+        resume_info="📄 Fayl: resume.pdf",
+        language="uz",
+        full_name="O'zbekiston Vali",
+    )
+    await save_application(
+        answers,
+        _verdict(answers),
+        telegram_id=777,
+        telegram_username="vali",
+        resume_file_kind="document",
+        resume_file_id="doc-1",
+    )
+
+    content, count = await build_candidates_export(get_settings())
+
+    assert count == 1
+    csv_text = content.decode("utf-8-sig")
+    assert "Ism-familiya" in csv_text
+    assert "O'zbekiston Vali" in csv_text
+    assert "@vali" in csv_text
+    assert "📄 Fayl: resume.pdf" in csv_text
+    assert "Ha" in csv_text
 
 
 @pytest.mark.asyncio
