@@ -1,4 +1,4 @@
-"""Muhit sozlamalari (.env orqali)."""
+"""Sozlamalar (.env orqali)."""
 
 from __future__ import annotations
 
@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     # fallback'i sifatida ishlatiladi
     management_chat_id: int | None = Field(default=None, alias="MANAGEMENT_CHAT_ID")
 
+    # --- Til ---
+    # /start da til tanlash oynasini ko'rsatish (🇺🇿 O'zbekcha / 🇷🇺 Русский)
+    language_choice: bool = Field(default=True, alias="LANGUAGE_CHOICE")
+    # Til tanlash o'chirilgan bo'lsa (yoki noma'lum til kelsa) ishlatiladigan til
+    default_language: str = Field(default="uz", alias="DEFAULT_LANGUAGE")
+
     # --- Nomzodlarni saralash (vakansiya filteri) ---
     # Yosh chegarasi (default 18-30)
     candidate_min_age: int = Field(default=18, alias="CANDIDATE_MIN_AGE")
@@ -39,6 +45,9 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="sqlite+aiosqlite:///./data/gulf_hr.db", alias="DATABASE_URL"
     )
+    # Suhbat holati (FSM) saqlanadigan fayl — bot qayta ishga tushganda
+    # nomzod yozayotgan ariza yo'qolmasligi uchun
+    fsm_db_path: str = Field(default="./data/fsm.db", alias="FSM_DB_PATH")
 
     # --- Vaqt ---
     tz: str = Field(default="Asia/Tashkent", alias="TZ")
@@ -65,6 +74,13 @@ class Settings(BaseSettings):
         if value is None or value == "":
             return 0
         return int(value)
+
+    @field_validator("language_choice", mode="before")
+    @classmethod
+    def _parse_language_choice(cls, value: object) -> bool:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on", "ha"}
+        return bool(value)
 
     @property
     def timezone(self) -> ZoneInfo:

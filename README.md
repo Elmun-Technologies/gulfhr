@@ -10,6 +10,8 @@ solishtiradi, natijani nomzodga aytadi va to'liq kartani HR guruhiga yuboradi.
 ```
 Facebook reklama → "Botga yozish" tugmasi → Telegram bot (t.me/BOTUSERNAME)
                                                     │
+                     Til tanlash: 🇺🇿 O'zbekcha / 🇷🇺 Русский
+                                                    │
                      Savollar: ism, jins, yosh, shahar, rus tili, telefon,
                                staj, rezume
                                                     │
@@ -24,12 +26,42 @@ Facebook reklama → "Botga yozish" tugmasi → Telegram bot (t.me/BOTUSERNAME)
 ## Savollar (suhbat oqimi)
 
 ```
+0️⃣ Til (🇺🇿 O'zbekcha / 🇷🇺 Русский) →
 1️⃣ Ism → 2️⃣ Jins (👨 Erkak / 👩 Ayol tugmalari) → 3️⃣ Yosh →
 4️⃣ Shahar (Ha/Yo'q) → 5️⃣ Rus tili (Ha/Yo'q — majburiy) → 6️⃣ Telefon →
 7️⃣ Staj (matn yozadi) → 8️⃣ Rezume (fayl PDF/DOC yoki golos — ovozli xabar) → ✅ Natija
 ```
 
 Ish grafigi bo'yicha savol berilmaydi.
+
+## 🌐 Til tanlash (o'zbek / rus)
+
+`/start` bosilganda bot avval tilni so'raydi va **butun suhbat tanlangan tilda**
+davom etadi — savollar, tugmalar, xato xabarlari va yakuniy natija (rad etish
+sabablari ham) tarjima qilinadi.
+
+- Tugma bosish shart emas: nomzod `o'zbekcha` / `ruscha` / `русский` deb yozsa ham qabul qilinadi.
+- Reklama havolasiga til oldindan yozilishi mumkin: `https://t.me/BOTUSERNAME?start=ru`
+  — til tanlash oynasisiz darhol ruscha boshlanadi (rus auditoriyasiga reklamada qulay).
+- `/lang` — tilni almashtirish (suhbat boshidan boshlanadi).
+- `LANGUAGE_CHOICE=false` — oyna o'chiriladi, bot `DEFAULT_LANGUAGE` (default `uz`) da ishlaydi.
+- Nomzod qaysi tilda gapirgani bazada saqlanadi va HR kartasida
+  `🌐 Suhbat tili: Rus` qatorida ko'rinadi. HR guruhining o'zi o'zbekcha qoladi.
+
+## 🛡 Suhbat uzilib qolmasligi
+
+- **Yozma javoblar ham ishlaydi.** Tugma o'rniga `erkak`, `ha`, `да`, `yo'q` deb
+  yozib yuborsalar ham oqim davom etadi.
+- **Bot hech qachon jim qolmaydi.** Rasm/stiker yoki mos kelmagan javob kelsa,
+  joriy savol qayta yuboriladi (`app/bot/handlers/candidates.py::on_unexpected`).
+- **Telegram xatolari oqimni uzmaydi.** Tugma ikki marta bosilsa
+  (`message is not modified`), callback eskirgan yoki xabar o'chirilgan bo'lsa —
+  keyingi savol baribir yuboriladi.
+- **Restart'dan keyin davom etadi.** Suhbat holati `MemoryStorage` o'rniga
+  SQLite'ga (`FSM_DB_PATH`) yoziladi: deploy/restart paytida nomzod yozayotgan
+  ariza yo'qolmaydi, suhbat to'xtagan joyidan davom etadi.
+- **Migratsiya avtomatik.** `init_db()` mavjud bazaga yangi ustunlarni
+  (`language`) va indekslarni o'zi qo'shadi — eski baza bilan ham ishlaydi.
 
 ## Saralash mezonlari
 
@@ -44,7 +76,8 @@ HR guruhiga yuboriladi.
 
 ## Bot buyruqlari
 
-- `/start` — ariza boshlash
+- `/start` — ariza boshlash (til tanlashdan boshlanadi; `/start ru` — darhol ruscha)
+- `/lang` — tilni almashtirish
 - `/cancel` — arizani bekor qilish
 - `/help` — yordam
 - `/stats` — analitika (faqat HR guruhida, istalgan a'zo yuborishi mumkin)
@@ -134,12 +167,28 @@ volume qo'shing).
 
 ```
 app/
-  bot/          Telegram bot: /start, /help, fallback, dispatcher
-  candidates/   Ariza oqimi: savollar, klaviaturalar, FSM, saralash, baza, HR kartasi
-  db/           SQLAlchemy modeli (Application) va sessiya
+  bot/          Telegram bot: /start, /lang, /help, fallback, dispatcher, middleware
+  candidates/   Ariza oqimi: savollar, matnlar (uz/ru), klaviaturalar, FSM, saralash, HR kartasi
+  db/           SQLAlchemy modeli (Application), sessiya, migratsiya va FSM (SQLite) storage
 leadbot/        Eski mustaqil lead-bot (noyob; python -m leadbot.main)
 tests/          pytest testlari
 ```
+
+## ⚡ Tezlik
+
+Nomzod sezadigan kechikish asosan Telegram API chaqiruvlari soniga bog'liq:
+
+- Salomlashuv va birinchi savol **bitta xabarda** yuboriladi (oldingi versiyada
+  `/start` 2 ta xabar yuborar edi → 1 ta API chaqiruvi tejaldi).
+- Tugma bosilganda "soat" belgisi (`callback.answer`) **eng avval** chaqiriladi —
+  oldin u 2 ta so'rovdan keyin yuborilar edi va tugma ~1 s "yuklanmoqda" turardi.
+- Baza yozuvi va HR guruhiga xabar **parallel** (`asyncio.gather`) bajariladi.
+- SQLite `WAL` + `synchronous=NORMAL` + `busy_timeout` rejimida — yozuvlar
+  tezroq va parallel suhbatlarda `database is locked` bo'lmaydi.
+- `/stats` endi butun jadvalni Python'ga yuklamaydi: jamlanmalar SQL'da
+  hisoblanadi (oldin 1000 satr o'qilar edi).
+- `TimingsMiddleware` (`app/bot/middlewares.py`) har bir so'rov vaqtini o'lchaydi;
+  0.5 s dan sekinlari logda `⏱ Sekin so'rov` sifatida ko'rinadi.
 
 ## Test va lint
 
@@ -151,7 +200,8 @@ pytest
 
 ## Talab mezonlarini o'zgartirish
 
-Savollar va matnlar `app/candidates/texts.py` da, saralash mantig'i
+Savollar va matnlar `app/candidates/texts.py` da (ikkala til: `UZBEK` va
+`RUSSIAN` — yangi matn qo'shsangiz **ikkalasiga ham** qo'shing), saralash mantig'i
 `app/candidates/qualify.py` da — yosh chegarasi, shahar talabi va rus
 tili sharti `.env` orqali (`CANDIDATE_MIN_AGE`, `CANDIDATE_MAX_AGE`,
 `CANDIDATE_CITY`, `CANDIDATE_RUSSIAN_REQUIRED`) sozlanadi. Boshqa

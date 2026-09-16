@@ -15,6 +15,7 @@ class CandidateAnswers:
     knows_russian: bool = False
     experience: str = ""
     resume_info: str = ""
+    language: str = ""  # nomzod tanlagan suhbat tili ("uz" | "ru")
 
 
 @dataclass(frozen=True)

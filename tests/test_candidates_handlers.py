@@ -117,7 +117,7 @@ def test_normalize_phone_rejects_garbage() -> None:
 
 
 @pytest.mark.asyncio
-async def test_start_candidate_application_sets_first_state() -> None:
+async def test_start_candidate_application_shows_language_chooser() -> None:
     bot = FakeBot()
     msg = FakeMessage(bot)
     state = make_state()
@@ -125,10 +125,46 @@ async def test_start_candidate_application_sets_first_state() -> None:
 
     await ch.start_candidate_application(msg, state)
 
+    # /start endi birinchi qadam sifatida til tanlashni so'raydi
+    assert (await state.get_state()) == "ApplicationStates:language"
+    assert msg.answered[0][0] == texts.CHOOSE_LANGUAGE
+    assert "Tilni tanlang" in msg.answered[0][0] and "Выберите язык" in msg.answered[0][0]
+    markup = msg.answered[0][1]["reply_markup"]
+    labels = [b.text for row in markup.inline_keyboard for b in row]
+    callbacks = [b.callback_data for row in markup.inline_keyboard for b in row]
+    assert callbacks == ["lang:uz", "lang:ru"]
+    assert labels == ["🇺🇿 O'zbekcha", "🇷🇺 Русский"]
+
+
+@pytest.mark.asyncio
+async def test_start_with_deep_link_language_skips_chooser() -> None:
+    bot = FakeBot()
+    msg = FakeMessage(bot)
+    state = make_state()
+
+    await ch.start_candidate_application(msg, state, requested_lang="ru")
+
     assert (await state.get_state()) == "ApplicationStates:full_name"
-    assert msg.answered[0][0] == texts.WELCOME
-    assert "Ish grafigi" not in texts.WELCOME
-    assert msg.answered[1][0] == texts.ASK_FULL_NAME
+    assert (await state.get_data())["lang"] == "ru"
+    # Salomlashuv va birinchi savol BITTA xabarda (tezlik)
+    assert len(msg.answered) == 1
+    assert "Здравствуйте" in msg.answered[0][0]
+    assert "Введите ваши имя и фамилию" in msg.answered[0][0]
+
+
+@pytest.mark.asyncio
+async def test_start_without_language_choice_uses_default_language(monkeypatch) -> None:
+    monkeypatch.setenv("LANGUAGE_CHOICE", "false")
+    get_settings.cache_clear()
+
+    bot = FakeBot()
+    msg = FakeMessage(bot)
+    state = make_state()
+
+    await ch.start_candidate_application(msg, state)
+
+    assert (await state.get_state()) == "ApplicationStates:full_name"
+    assert msg.answered[0][0].startswith(texts.WELCOME)
 
 
 @pytest.mark.asyncio
@@ -303,7 +339,7 @@ async def test_short_name_is_asked_again() -> None:
     msg = FakeMessage(bot, "Va")
     await ch.on_full_name(msg, state)
     assert (await state.get_state()) == "ApplicationStates:full_name"
-    assert msg.answered[0][0] == texts.ASK_FULL_NAME
+    assert msg.answered[0][0] == texts.ASK_FULL_NAME_INVALID
 
 
 @pytest.mark.asyncio
