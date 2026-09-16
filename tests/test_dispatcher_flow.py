@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 import pytest
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
-from aiogram.methods import SendMessage
+from aiogram.methods import GetMe, SendMessage
 from aiogram.methods.base import TelegramMethod
 from aiogram.types import (
     CallbackQuery,
@@ -23,11 +23,11 @@ from aiogram.types import (
     PhotoSize,
     Update,
     User,
+    WebhookInfo,
 )
 from sqlalchemy import select
 
-from app.bot.handlers import candidates, common, start
-from app.bot.setup import build_dispatcher
+from app.bot.setup import ROUTERS, build_dispatcher
 from app.candidates.texts import RUSSIAN, UZBEK
 from app.db.fsm_storage import SqliteStorage
 from app.db.models import Application
@@ -41,7 +41,7 @@ def _free_routers() -> None:
     biriktirishga ruxsat bermaydi. Ishlash muhitida dispatcher bitta, bu faqat
     testda bir nechta "bot qayta ishga tushishi"ni simulyatsiya qilish uchun.
     """
-    for router in (start.router, candidates.router, common.router):
+    for router in ROUTERS:
         router._parent_router = None
 
 CHAT = Chat(id=42, type="private")
@@ -62,6 +62,11 @@ class MockedSession(BaseSession):
         self.calls.append(method)
         if isinstance(method, SendMessage):
             return Message(message_id=len(self.calls) + 1, date=datetime.now(UTC), chat=CHAT)
+        if isinstance(method, GetMe):
+            # /diag o'lchovlari uchun haqiqiy `User` kerak (True emas)
+            return User(id=1, is_bot=True, first_name="Gulf HR", username="gulf_hr_bot")
+        if method.__api_method__ == "getWebhookInfo":
+            return WebhookInfo(url="")
         return True
 
     async def stream_content(self, url, headers=None, timeout=30, chunk_size=65536,
@@ -73,8 +78,9 @@ class MockedSession(BaseSession):
 class FlowDriver:
     """Nomzod nomidan bot bilan gaplashadi."""
 
-    def __init__(self, storage=None) -> None:
-        self.session = MockedSession()
+    def __init__(self, storage=None, session: BaseSession | None = None) -> None:
+        # `session` — kechikishni o'lchash uchun almashtiriladigan sessiya
+        self.session = session or MockedSession()
         self.bot = Bot(token="123456:TEST", session=self.session)
         _free_routers()
         self.dp = build_dispatcher(storage)

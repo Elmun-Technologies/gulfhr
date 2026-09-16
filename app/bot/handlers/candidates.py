@@ -22,6 +22,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from aiogram import F, Router
@@ -140,12 +142,59 @@ async def _t(state: FSMContext) -> Lang:
     return get_texts(await _lang(state))
 
 
+def _fire(coro) -> asyncio.Task:  # noqa: ANN001 - tur aniq, izoh pastda
+    """Korutinani FONDA ishga tushiradi (kutmasdan).
+
+    Kerak: bir nechta Telegram so'rovini ketma-ket emas, bir vaqtda yuborish.
+    Xato bo'lsa faqat logga yoziladi — oqim to'xtamaydi.
+    """
+    task = asyncio.create_task(coro)
+    task.add_done_callback(_log_background_failure)
+    return task
+
+
+def _log_background_failure(task: asyncio.Task) -> None:
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.warning("Fon vazifasi xato bilan tugadi: %r", exc)
+
+
+@asynccontextmanager
+async def _fast_step(callback: CallbackQuery, *, drop_keyboard: bool = True) -> AsyncIterator[None]:
+    """Tugma bosilganda nomzod kutadigan vaqtni qisqartiradi.
+
+    Muammo: har bir tugma bosishda uchta Telegram so'rovi KETMA-KET ketardi —
+    `answerCallbackQuery` (soat belgisini o'chirish) → `editMessageReplyMarkup`
+    (klaviaturani olish) → yangi savol (`sendMessage`). Har biri bitta tarmoq
+    kechikishi (RTT) qo'shardi: Fly/ams ↔ Telegram ~80 ms bo'lsa ham qadam
+    ~250 ms, sekin tarmoqda esa bir necha sekund.
+
+    Yechim: uchtasi ham PARALLEL yuboriladi. Kritik yo'l — 1 RTT. Blok
+    oxirida (`finally`) ularning tugashi kutiladi, shuning uchun fon vazifalari
+    "yo'qolmaydi" va testlarda ham hammasi hisobga olinadi.
+    """
+    tasks = [_fire(_answer_callback(callback))]
+    if drop_keyboard:
+        tasks.append(_fire(_drop_inline_keyboard(callback)))
+    # Bitta tick: yuqoridagi so'rovlar (ayniqsa `callback.answer`) haqiqatan
+    # yo'lga chiqib ulgursin, keyin keyingi savol yuboriladi — shu bilan
+    # tugma "soat" belgisi savoldan kechikmaydi, lekin ular parallel ketadi.
+    await asyncio.sleep(0)
+    try:
+        yield
+    finally:
+        await asyncio.gather(*tasks)
+
+
 async def _answer_callback(callback: CallbackQuery) -> None:
     """Tugma ustidagi "soat" belgisini darhol o'chiradi.
 
-    Eng avval chaqiriladi — aks holda nomzod tugmani bosgach 1-2 soniya
-    "yuklanmoqda" belgisini ko'radi. Callback eskirgan bo'lsa (Telegram
-    "query is too old" qaytaradi) oqim baribir davom etadi.
+    Boshqa so'rovlar bilan PARALLEL yuboriladi (`_fast_step`) — aks holda
+    nomzod tugmani bosgach 1-2 soniya "yuklanmoqda" belgisini ko'rardi.
+    Callback eskirgan bo'lsa (Telegram "query is too old" qaytaradi) oqim
+    baribir davom etadi.
     """
     try:
         await callback.answer()
@@ -299,12 +348,11 @@ async def cmd_stats(message: Message) -> None:
 @router.callback_query(ApplicationStates.language, F.data.startswith("lang:"))
 async def on_language(callback: CallbackQuery, state: FSMContext) -> None:
     lang = normalize_language(callback.data.split(":", 1)[1] if callback.data else "")
-    await _answer_callback(callback)
-    if lang is None:
-        await _reask(callback.message, state)
-        return
-    await _drop_inline_keyboard(callback)
-    await _begin_flow(callback.message, state, lang)
+    async with _fast_step(callback, drop_keyboard=lang is not None):
+        if lang is None:
+            await _reask(callback.message, state)
+            return
+        await _begin_flow(callback.message, state, lang)
 
 
 @router.message(ApplicationStates.language, F.text)
@@ -349,12 +397,12 @@ async def _set_gender(target: Message, state: FSMContext, gender: str) -> None:
 @router.callback_query(ApplicationStates.gender, F.data.startswith("cand_gender:"))
 async def on_gender(callback: CallbackQuery, state: FSMContext) -> None:
     gender = callback.data.split(":", 1)[1] if callback.data else ""
-    await _answer_callback(callback)
-    if gender not in ("male", "female"):
-        await _reask(callback.message, state)
-        return
-    await _drop_inline_keyboard(callback)
-    await _set_gender(callback.message, state, gender)
+    valid = gender in ("male", "female")
+    async with _fast_step(callback, drop_keyboard=valid):
+        if not valid:
+            await _reask(callback.message, state)
+            return
+        await _set_gender(callback.message, state, gender)
 
 
 @router.message(ApplicationStates.gender, F.text)
@@ -399,9 +447,8 @@ async def _set_city(target: Message, state: FSMContext, lives_in_city: bool) -> 
 
 @router.callback_query(ApplicationStates.city, F.data.in_({"cand_yes", "cand_no"}))
 async def on_city(callback: CallbackQuery, state: FSMContext) -> None:
-    await _answer_callback(callback)
-    await _drop_inline_keyboard(callback)
-    await _set_city(callback.message, state, callback.data == "cand_yes")
+    async with _fast_step(callback):
+        await _set_city(callback.message, state, callback.data == "cand_yes")
 
 
 @router.message(ApplicationStates.city, F.text)
@@ -427,9 +474,8 @@ async def _set_russian(target: Message, state: FSMContext, knows_russian: bool) 
 
 @router.callback_query(ApplicationStates.russian, F.data.in_({"cand_yes", "cand_no"}))
 async def on_russian(callback: CallbackQuery, state: FSMContext) -> None:
-    await _answer_callback(callback)
-    await _drop_inline_keyboard(callback)
-    await _set_russian(callback.message, state, callback.data == "cand_yes")
+    async with _fast_step(callback):
+        await _set_russian(callback.message, state, callback.data == "cand_yes")
 
 
 @router.message(ApplicationStates.russian, F.text)
@@ -498,10 +544,9 @@ async def on_experience(message: Message, state: FSMContext) -> None:
 
 @router.callback_query(ApplicationStates.resume, F.data == "cand_skip_resume")
 async def on_resume_skip(callback: CallbackQuery, state: FSMContext) -> None:
-    await _answer_callback(callback)
-    await state.update_data(resume_info="")
-    await _drop_inline_keyboard(callback)
-    await _finish(message=callback.message, state=state)
+    async with _fast_step(callback):
+        await state.update_data(resume_info="")
+        await _finish(message=callback.message, state=state)
 
 
 @router.message(ApplicationStates.resume, F.voice)

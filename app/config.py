@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
@@ -49,6 +50,23 @@ class Settings(BaseSettings):
     # nomzod yozayotgan ariza yo'qolmasligi uchun
     fsm_db_path: str = Field(default="./data/fsm.db", alias="FSM_DB_PATH")
 
+    # --- Telegram API (tezlik va "osilib qolish"dan himoya) ---
+    # Bitta Telegram so'rovi uchun kutish chegarasi (sekund). aiogram standarti
+    # 60 s: tarmoq uzilsa bot bir daqiqa javob bermay "o'ylanib" qoladi.
+    tg_request_timeout: float = Field(default=15.0, alias="TG_REQUEST_TIMEOUT")
+    # Bir vaqtda ochiq turishi mumkin bo'lgan HTTPS ulanishlar soni
+    tg_connections: int = Field(default=32, alias="TG_CONNECTIONS")
+    # Long polling: Telegram so'rovni shu vaqt ushlab turadi (sekund)
+    polling_timeout: int = Field(default=10, alias="POLLING_TIMEOUT")
+    # Bot qayta ishga tushganda Telegram navbatida turgan update'lar tashlab
+    # yuborilsinmi. `false` (default) — nomzod bot o'chib turganda bosgan
+    # tugmasi yo'qolmaydi va suhbat davom etadi (FSM bazada saqlanadi).
+    drop_pending_updates: bool = Field(default=False, alias="DROP_PENDING_UPDATES")
+    # /diag buyrug'i shaxsiy chatda ham ishlaydigan user id'lar (vergul bilan)
+    admin_user_ids: str = Field(default="", alias="ADMIN_USER_IDS")
+    # Necha sekunddan sekin update logga "sekin" bo'lib yoziladi
+    slow_request_threshold: float = Field(default=0.5, alias="SLOW_REQUEST_THRESHOLD")
+
     # --- Vaqt ---
     tz: str = Field(default="Asia/Tashkent", alias="TZ")
 
@@ -75,9 +93,9 @@ class Settings(BaseSettings):
             return 0
         return int(value)
 
-    @field_validator("language_choice", mode="before")
+    @field_validator("language_choice", "drop_pending_updates", mode="before")
     @classmethod
-    def _parse_language_choice(cls, value: object) -> bool:
+    def _parse_bool(cls, value: object) -> bool:
         if isinstance(value, str):
             return value.strip().lower() in {"1", "true", "yes", "on", "ha"}
         return bool(value)
@@ -85,6 +103,16 @@ class Settings(BaseSettings):
     @property
     def timezone(self) -> ZoneInfo:
         return ZoneInfo(self.tz)
+
+    @property
+    def admin_user_id_set(self) -> frozenset[int]:
+        """`ADMIN_USER_IDS` ("123, 456") ni to'plamga aylantiradi."""
+        parts = re.split(r"[,\s]+", self.admin_user_ids.strip())
+        ids: set[int] = set()
+        for part in parts:
+            if part.lstrip("-").isdigit():
+                ids.add(int(part))
+        return frozenset(ids)
 
     @property
     def candidates_group_chat_id(self) -> int | None:

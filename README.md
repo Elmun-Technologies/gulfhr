@@ -81,6 +81,8 @@ HR guruhiga yuboriladi.
 - `/cancel` — arizani bekor qilish
 - `/help` — yordam
 - `/stats` — analitika (faqat HR guruhida, istalgan a'zo yuborishi mumkin)
+- `/diag` (`/ping`, `/tezlik`) — diagnostika: Telegram bilan aloqa tezligi, baza
+  holati, sekin so'rovlar (HR guruhida; shaxsiy chatda — `ADMIN_USER_IDS` uchun)
 
 ## O'rnatish
 
@@ -181,27 +183,119 @@ Telegram update'lari long polling orqali olinadi. Fly.io uchun ilova ichida
 foydalanuvchi API'si emas. `fly.toml` da `auto_stop_machines = 'off'` qolishi
 shart, chunki Telegram polling doimiy jarayon.
 
-Nomzod sezadigan kechikish asosan Telegram API chaqiruvlari soniga bog'liq:
+**Nomzod sezadigan kechikish = tarmoq RTT × ketma-ket so'rovlar soni.** Shuning
+uchun asosiy qoida: bitta bosqichda hamma Telegram so'rovlari **parallel**
+ketishi kerak (har biri bitta RTT). `scripts/latency_bench.py` shu raqamni
+o'lchaydi, `tests/test_latency_budget.py` esa uni regressiyadan himoya qiladi.
 
-- Salomlashuv va birinchi savol **bitta xabarda** yuboriladi (oldingi versiyada
-  `/start` 2 ta xabar yuborar edi → 1 ta API chaqiruvi tejaldi).
-- Tugma bosilganda "soat" belgisi (`callback.answer`) **eng avval** chaqiriladi —
-  oldin u 2 ta so'rovdan keyin yuborilar edi va tugma ~1 s "yuklanmoqda" turardi.
+Hozirgi holat (o'lchangan, 80 ms RTT da):
+
+| Qadam | Ketma-ket RTT | Nomzod kutishi |
+|---|---|---|
+| Har bir tugma bosish (soat + klaviatura + yangi savol) | **1** | ~84 ms |
+| Har bir matn javob | **1** | ~84 ms |
+| Butun ariza (10 bosqich) | **11** | ~0.9 s |
+
+Nima qilingan:
+
+- **So'rovlar parallel.** Tugma bosilganda `answerCallbackQuery` (soat belgisi),
+  `editMessageReplyMarkup` (klaviatura) va yangi savol bir vaqtda yuboriladi
+  (`_fast_step`, `app/bot/handlers/candidates.py`). Oldin ular ketma-ket edi:
+  3 ta so'rov = 3 RTT (sekin tarmoqda har bir bosqichda bir necha sekund).
+- **So'rov timeout qisqartirilgan** (`TG_REQUEST_TIMEOUT`, default 15 s; aiogram
+  standarti 60 s edi) — tarmoq uzilsa bot daqiqalab "o'ylanib" qolmaydi.
+- **Ulanishlar qayta ishlatiladi** (`keepalive_timeout=45`, `enable_cleanup_closed`)
+  — har bir xabar uchun yangi TLS handshake qilinmaydi.
+- **`UserLockMiddleware`** — bitta nomzodning update'lari ketma-ket bajariladi
+  (aiogram ularni parallel ishlaydi; FSM "o'qi→yoz" poygasi suhbatni
+  "keyingi bosqichga o'tmay" qo'yishi mumkin edi). Turli nomzodlar parallel.
+- **Xato bo'lsa bot jim qolmaydi** (`app/bot/errors.py`) — nomzodga xabar boradi,
+  aks holda xato faqat log'da qolib, nomzod "bot o'ylanib qoldi" deb o'ylardi.
+- **Polling backoff tezroq** (0.2-3 s, aiogram standarti 1-5 s) — tarmoq
+  uzilishidan keyin bot tezroq tiklanadi.
+- **Navbatdagi update'lar saqlanadi** (`DROP_PENDING_UPDATES=false`): bot qayta
+  ishga tushganda nomzod bosgan tugma yo'qolmaydi, suhbat FSM bazasidan davom
+  etadi. (Avval ular tashlanar edi — nomzod "keyingi etapga o'tmayapti" deb
+  ko'rardi.)
 - Baza yozuvi va HR guruhiga xabar **parallel** (`asyncio.gather`) bajariladi.
 - SQLite `WAL` + `synchronous=NORMAL` + `busy_timeout` rejimida — yozuvlar
   tezroq va parallel suhbatlarda `database is locked` bo'lmaydi.
-- `/stats` endi butun jadvalni Python'ga yuklamaydi: jamlanmalar SQL'da
-  hisoblanadi (oldin 1000 satr o'qilar edi).
-- `TimingsMiddleware` (`app/bot/middlewares.py`) har bir so'rov vaqtini o'lchaydi;
-  0.5 s dan sekinlari logda `⏱ Sekin so'rov` sifatida ko'rinadi.
+- `TimingsMiddleware` har bir update vaqtini o'lchaydi; `SLOW_REQUEST_THRESHOLD`
+  (default 0.5 s) dan sekinlari logda `⏱ Sekin so'rov` bo'lib chiqadi va `/diag`
+  da ko'rinadi.
+
+Kechikishni o'lchash:
+
+```bash
+python scripts/latency_bench.py                 # 80 ms RTT bilan
+python scripts/latency_bench.py --latency 0.3   # sekin tarmoqni simulyatsiya qilib
+```
+
+## 🩺 Diagnostika (`/diag`)
+
+HR guruhida `/diag` (yoki `/ping`, `/tezlik`) yuborilsa bot o'z holatini
+ko'rsatadi — "sekin" shikoyatida aybdor kodmi yoki tarmoqmi, shu darhol
+ma'lum bo'ladi:
+
+```
+🩺 BOT DIAGNOSTIKASI
+
+🤖 Bot: @gulf_hr_bot (id: 123456)
+🕒 Ish vaqti: 3 soat 12 daqiqa
+
+Telegram bilan aloqa
+⏱ API javob vaqti: 88 ms (eng yaxshi: 84 ms) — ✅ normal
+📨 Xabar yuborish: 95 ms
+📡 Webhook: yo'q (long polling) ✅
+
+So'rovlar
+🔄 Qayta ishlangan update: 412
+🐌 Sekin (>0.5s): 3
+❗️ Xatolar: 0
+
+Bazalar
+🗄 Suhbat holati (FSM): 12 ta yozuv, 0.05 MB
+📋 Arizalar bazasi: 57 ta
+```
+
+- **API javob vaqti > 800 ms** bo'lsa — aybdor server hududi/tarmoq: nomzodlar
+  har bosqichda shu vaqtni kutadi (`fly.toml` dagi `primary_region` ni
+  o'zgartiring — `DEPLOY_FLY.md`).
+- **Webhook o'rnatilgan** bo'lsa — eski deploy (Vercel/Railway) ham shu botni
+  ushlab turgan bo'lishi mumkin, u long polling bilan konflikt beradi.
+- Shaxsiy chatda `/diag` faqat `ADMIN_USER_IDS` (vergul bilan: `123456, 789012`)
+  dagi foydalanuvchilar uchun ishlaydi — nomzodlar texnik ma'lumot ko'rmaydi.
+
+## 🐢 "Bot sekin ishlayapti / keyingi bosqichga o'tmayapti" — tekshirish tartibi
+
+1. **HR guruhida `/diag`** yuboring: API RTT qancha? >800 ms bo'lsa — tarmoq/server.
+2. **Loglarni ko'ring** (`fly logs`):
+   - `⚠️ Telegram 409 Conflict` — shu token bilan **ikkinchi jarayon** ham
+     ishlayapti (Telegram update'larni ular o'rtasida bo'lib tashlaydi):
+     ikkita machine bo'lmasin (`fly scale count 1`), eski deploy to'liq
+     o'chirilgan bo'lsin, lokal kompyuterda `python -m app.main` ishlamasin.
+   - `⏱ Sekin so'rov: ...` — qaysi bosqich sekin ekanini aniq ko'rsatadi.
+   - `⏳ user=... oldingi javob tugashini kutdi` — bitta nomzod ketma-ket yozgan.
+   - `⚠️ Telegram aloqasi: 1200 ms` — ishga tushishda o'lchangan tarmoq kechikishi.
+3. **Xato bo'lsa** nomzod endi jimgina qolmaydi: bot `⚠️ Kechirasiz, texnik
+   xatolik...` deb javob beradi va xato `❗️ Update qayta ishlanmadi` bo'lib
+   logga tushadi (oldin faqat log bo'lardi).
 
 ## Test va lint
 
 ```bash
 pip install -r requirements-dev.txt
-ruff check app leadbot tests
+ruff check app leadbot tests scripts
 pytest
 ```
+
+Testlar orasida tezlikni nazorat qiladiganlari ham bor:
+
+- `tests/test_latency_budget.py` — har bir bosqich 1 ta tarmoq kutishi (RTT)
+  ichida bajarilishi va butun ariza 12 RTT dan oshmasligi;
+- `tests/test_flow_speed.py` — bir arizadagi Telegram API chaqiruvlari soni;
+- `tests/test_robustness.py` — navbat (bitta nomzod ketma-ket ishlanadi) va
+  xato bo'lganda nomzodga javob borishi.
 
 ## Talab mezonlarini o'zgartirish
 

@@ -115,6 +115,22 @@ Gulf HR bot ishga tushmoqda...
 Baza tayyor: sqlite+aiosqlite
 FSM bazasi tayyor: ./data/fsm.db ...
 Health server tinglamoqda: 0.0.0.0:8080
+Telegram aloqasi: 92 ms (@gulf_hr_bot, id=...)
+Polling sozlamalari: polling_timeout=10s, so'rov timeout=15s, sekin so'rov chegarasi=0.5s
+Navbatda turgan update'lar saqlanadi — nomzod javobi yo'qolmaydi
+Ishga tushish 1.4 sekundda tugadi
+```
+
+**`Telegram aloqasi: N ms`** qatoriga e'tibor bering — bu serveringizdan Telegram
+API gacha bo'lgan kechikish. 300 ms dan katta bo'lsa bot har bir bosqichda shu
+vaqtni kutadi (nomzod uchun "sekin"). Bunday holatda regionni o'zgartiring:
+
+```bash
+# Toshkentga eng yaqin Fly regionlari: fra (Frankfurt), ams (Amsterdam),
+# hkg (Gonkong) — sinab ko'ring va /diag bilan o'lchang
+fly scale count 1
+fly regions set fra
+fly deploy
 ```
 
 Fly deploy paytida `The app is not listening on 0.0.0.0:8080` degan warning
@@ -151,7 +167,9 @@ fly secrets set CANDIDATE_MAX_AGE="35"
 | Logda `BOT_TOKEN sozlanmagan` | `fly secrets set BOT_TOKEN="..."` (deploy qaytarish shart emas — avtomatik restart) |
 | Logda `Telegram: Unauthorized` | Token xato/eski — BotFather'dan qayta oling va `fly secrets set` bilan yangilang |
 | HR guruhiga karta bormaydi | Botni guruhga **admin** qilib qo'shing; guruh ID `CANDIDATES_CHAT_ID` (yoki `MANAGEMENT_CHAT_ID`) sifatida to'g'ri kiritilganini tekshiring |
-| Bot ikkinchi nusxasi bilan 409 conflict | Boshqa joyda (kompyuter/Vercel/esh) shu token bilan bot ishlamasin — bitta token = bitta ishlaydigan nusxa |
+| Bot **sekin** ishlayapti / bosqichdan o'tmayapti | HR guruhida `/diag` yuboring: API javob vaqti >800 ms bo'lsa — regionni almashtiring. Logda `⚠️ Telegram 409 Conflict` bo'lsa — ikkinchi jarayon: `fly scale count 1` + eski deploy/lokal nusxani o'chiring. Logda `⏱ Sekin so'rov` — sekin bosqich nomi ko'rinadi |
+| Bot ikkinchi nusxasi bilan 409 conflict | Boshqa joyda (kompyuter/Vercel/esh) shu token bilan bot ishlamasin — bitta token = bitta ishlaydigan nusxa. Logda `⚠️ Telegram 409 Conflict` bo'lsa bot o'zi qanday tekshirishni aytadi |
+| Bot xato berib jim qoldi | Yangi versiyada bot nomzodga `⚠️ Kechirasiz, texnik xatolik...` deb javob beradi, sabab esa `❗️ Update qayta ishlanmadi` yozuvi bilan logga tushadi |
 | Boshqarish uchun | `fly ssh console` (ichiga kirish), `fly apps restart gulf-hr` (qayta ishga tushirish) |
 
 ## Eslatma

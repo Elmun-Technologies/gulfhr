@@ -25,6 +25,11 @@ kill_timeout = '10s'
 [env]
   TZ = 'Asia/Tashkent'
   LOG_LEVEL = 'INFO'
+  # Tezlik sozlamalari (batafsil: .env.example). Sir emas, shuning uchun
+  # secrets emas — kerak bo'lsa shu yerda o'zgartirib qayta deploy qiling.
+  TG_REQUEST_TIMEOUT = '15'
+  POLLING_TIMEOUT = '10'
+  SLOW_REQUEST_THRESHOLD = '0.5'
 
 # Telegram bot HTTP so'rov qabul qilmaydi, lekin Fly proxy liveness tekshiruvi
 # uchun /health endpoint'ga ega. Botni auto-stop qilish mumkin emas: Telegram
