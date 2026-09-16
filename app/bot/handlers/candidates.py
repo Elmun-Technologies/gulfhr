@@ -32,6 +32,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
+    BufferedInputFile,
     CallbackQuery,
     InaccessibleMessage,
     InlineKeyboardMarkup,
@@ -50,6 +51,7 @@ from app.candidates.keyboards import (
 )
 from app.candidates.qualify import CandidateAnswers, qualify_candidate
 from app.candidates.service import (
+    build_candidates_export,
     build_candidates_report,
     notify_hr_group,
     save_application,
@@ -62,7 +64,7 @@ from app.candidates.texts import (
     get_texts,
     normalize_language,
 )
-from app.config import get_settings
+from app.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 router = Router(name="candidates")
@@ -323,12 +325,24 @@ async def cmd_lang(message: Message, state: FSMContext) -> None:
     await state.set_state(ApplicationStates.language)
 
 
-@router.message(Command("stats"))
+def _is_hr_group(message: Message, settings: Settings) -> bool:
+    """Buyruq yuborilgan chat sozlangan HR guruhi ekanini tekshiradi.
+
+    ID bo'yicha tekshirish muhim: guruhga qo'shilgan har qanday odam umumiy
+    statistikani ko'rishi mumkin, lekin bot boshqa guruhlarga ma'lumot chiqarib
+    yubormasligi kerak.
+    """
+    return (
+        settings.candidates_group_chat_id is not None
+        and message.chat.id == settings.candidates_group_chat_id
+    )
+
+
+@router.message(Command("stats", "stat"))
 async def cmd_stats(message: Message) -> None:
-    """Analitika hisoboti — faqat HR guruhida ishlaydi."""
+    """Analitika hisoboti — HR guruhida `/stats` yoki qisqa `/stat`."""
     settings = get_settings()
-    group_id = settings.candidates_group_chat_id
-    if group_id is None or message.chat.id != group_id:
+    if not _is_hr_group(message, settings):
         await message.answer(texts.STATS_GROUP_ONLY)
         return
     try:
@@ -338,6 +352,30 @@ async def cmd_stats(message: Message) -> None:
         await message.answer(texts.STATS_ERROR)
         return
     await message.answer(report, parse_mode="HTML")
+
+
+@router.message(Command("export", "csv"))
+async def cmd_export(message: Message) -> None:
+    """Barcha nomzodlarni CSV fayl qilib HR guruhiga yuboradi."""
+    settings = get_settings()
+    if not _is_hr_group(message, settings):
+        await message.answer(texts.STATS_GROUP_ONLY)
+        return
+
+    try:
+        content, count = await build_candidates_export(settings)
+    except Exception:  # noqa: BLE001
+        logger.exception("Nomzodlar eksportini tayyorlashda xato")
+        await message.answer(texts.STATS_ERROR)
+        return
+
+    timestamp = datetime.now(settings.timezone).strftime("%Y%m%d_%H%M")
+    document = BufferedInputFile(content, filename=f"gulf_hr_nomzodlar_{timestamp}.csv")
+    await message.bot.send_document(
+        chat_id=message.chat.id,
+        document=document,
+        caption=f"📁 Nomzodlar eksporti: {count} ta ariza.",
+    )
 
 
 # ---------------------------------------------------------------------- #

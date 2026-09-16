@@ -1,7 +1,9 @@
-"""Nomzod arizalari: bazaga saqlash, HR guruhiga karta tuzish, /stats analitikasi."""
+"""Nomzod arizalari: saqlash, HR guruhiga yuborish va hisobotlar."""
 
 from __future__ import annotations
 
+import csv
+import io
 import logging
 from datetime import UTC, datetime, time
 
@@ -254,3 +256,76 @@ async def build_candidates_report(settings: Settings) -> str:
         lines.extend(recent_lines)
 
     return "\n".join(lines)
+
+
+async def build_candidates_export(settings: Settings) -> tuple[bytes, int]:
+    """Barcha arizalarni Excel/Google Sheets ochadigan CSV faylga chiqaradi.
+
+    Fayl `utf-8-sig` bilan yoziladi: Excel o'zbekcha va ruscha harflarni
+    avtomatik to'g'ri ko'rsatadi. Hisobotdan farqli ravishda bu funksiya barcha
+    yozuvlarni qaytaradi, shuning uchun eksport faqat HR guruhidagi buyruqdan
+    chaqirilishi kerak.
+    """
+    async with session_scope() as session:
+        rows = (
+            await session.execute(
+                select(Application).order_by(Application.created_at.desc(), Application.id.desc())
+            )
+        ).scalars().all()
+
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(
+        [
+            "ID",
+            "Ism-familiya",
+            "Jins",
+            "Yosh",
+            "Toshkentda yashaydi",
+            "Rus tilini biladi",
+            "Telefon",
+            "Staj",
+            "Rezume",
+            "Suhbat tili",
+            "Telegram ID",
+            "Telegram username",
+            "Mos keladi",
+            "Rad etish sabablari",
+            "Sana",
+        ]
+    )
+
+    gender_labels = {"male": "Erkak", "female": "Ayol"}
+    language_labels = {"uz": "O'zbek", "ru": "Rus"}
+    reject_labels = {**REJECT_CODE_LABELS}
+    for row in rows:
+        created_at = row.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        created_at = created_at.astimezone(settings.timezone)
+        reject_codes = [code for code in (row.reject_codes or "").split(",") if code]
+        reasons = [
+            reject_labels.get(code, code).format(city=settings.candidate_city)
+            for code in reject_codes
+        ]
+        writer.writerow(
+            [
+                row.id,
+                row.full_name,
+                gender_labels.get(row.gender or "", row.gender or ""),
+                row.age,
+                "Ha" if row.lives_in_city else "Yo'q",
+                "Ha" if row.knows_russian else "Yo'q",
+                row.phone,
+                row.experience or "",
+                row.resume_info or "",
+                language_labels.get(row.language or "", row.language or ""),
+                row.telegram_id or "",
+                f"@{row.telegram_username}" if row.telegram_username else "",
+                "Ha" if row.is_qualified else "Yo'q",
+                "; ".join(reasons),
+                created_at.strftime("%d.%m.%Y %H:%M"),
+            ]
+        )
+
+    return output.getvalue().encode("utf-8-sig"), len(rows)

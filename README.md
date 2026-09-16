@@ -80,7 +80,9 @@ HR guruhiga yuboriladi.
 - `/lang` — tilni almashtirish
 - `/cancel` — arizani bekor qilish
 - `/help` — yordam
-- `/stats` — analitika (faqat HR guruhida, istalgan a'zo yuborishi mumkin)
+- `/stats` yoki `/stat` — analitika (faqat HR guruhida, istalgan a'zo yuborishi mumkin)
+- `/export` (`/csv`) — barcha arizalarni Excel/Google Sheets uchun CSV fayl qilib yuboradi
+  (faqat HR guruhida)
 - `/diag` (`/ping`, `/tezlik`) — diagnostika: Telegram bilan aloqa tezligi, baza
   holati, sekin so'rovlar (HR guruhida; shaxsiy chatda — `ADMIN_USER_IDS` uchun)
 
@@ -128,19 +130,25 @@ HR guruhiga yuboriladi.
    ```
 
 3. **HR guruh**: botni guruhga **admin** qilib qo'shing (aks holda
-   kartalarni yuborolmaydi) va guruh ID sini oling
-   (masalan `-1001234567890`) — uni `.env` ga yozing.
+   kartalarni va CSV eksportni yuborolmaydi) va guruh ID sini oling
+   (masalan `-1001234567890`) — uni `.env` ga `CANDIDATES_CHAT_ID` sifatida yozing.
+   Shu ID bo'lmasa `/stat`, `/diag` va `/export` xavfsizlik sababli javob bermaydi.
+   BotFather'da `/setprivacy` → **Disable** qiling yoki buyruqlarni guruhda
+   `/<buyruq>@BOTUSERNAME` ko'rinishida yuboring (masalan
+   `/stat@gulf_hr_bot`); aks holda Telegram privacy rejimi botga guruhdagi
+   oddiy buyruqlarni yetkazmasligi mumkin.
 
 4. **Facebook reklama** (Meta Ads Manager): "Click to Telegram" tugmasi/
    veb-sayt havolasi sifatida `https://t.me/BOTUSERNAME` ni ko'rsating —
    reklamani ko'rgan odam to'g'ridan-to'g'ri botga tushadi va `/start`
    bilan ariza boshlanadi.
 
-## 📊 Analitika (`/stats`)
+## 📊 Analitika (`/stats`, `/stat`)
 
 Har bir topshirilgan ariza asosiy bazaga (`DATABASE_URL`, default:
 `./data/gulf_hr.db`) saqlanadi. **HR guruhidagi istalgan a'zo** (admin
-bo'lmasa ham) `/stats` buyrug'ini yuborib, umumiy statistikani ko'ra oladi:
+bo'lmasa ham) `/stats` yoki qisqa `/stat` buyrug'ini yuborib, umumiy
+statistikani ko'ra oladi:
 
 ```
 📊 ANALITIKA
@@ -164,6 +172,13 @@ Analitika vaqt mintaqasi `TZ` (default: `Asia/Tashkent`) orqali sozlanadi.
 Docker/Fly.io'da ma'lumot yo'qolmasligi uchun `/app/data` katalogini
 doimiy volume'ga ulash tavsiya etiladi (docker-compose'da ulangan, Fly'da
 volume qo'shing).
+
+## 📁 Eksport (`/export`)
+
+HR guruhida `/export` (yoki `/csv`) yuborilsa, barcha arizalar CSV faylga
+chiqariladi. Fayl Excel va Google Sheets'da ochiladi, o'zbekcha/ruscha
+harflar to'g'ri ko'rinadi. Eksport faqat `CANDIDATES_CHAT_ID` bilan sozlangan
+HR guruhida ishlaydi.
 
 ## Loyiha tuzilishi
 
