@@ -2,9 +2,10 @@
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
-# Bu app Gulf HR Telegram boti: long-polling — web server / http_service
-# kerak emas. Nomzodlarni vakansiya talablari bo'yicha saralaydi
-# (Sotuv menejeri / B2B menejer) va HR guruhiga kartalarni yuboradi.
+# Bu app Gulf HR Telegram boti: yangilanishlar long-polling orqali olinadi.
+# Fly service/health-check uchun bot ichida yengil /health endpoint ham ishlaydi.
+# Nomzodlarni vakansiya talablari bo'yicha saralaydi (Sotuv menejeri / B2B
+# menejer) va HR guruhiga kartalarni yuboradi.
 #
 # Deploy qilish bosqichlari (to'liq yo'riqoma: DEPLOY_FLY.md):
 #   1. fly launch --no-deploy          # app yaratadi (nom band bo'lsa o'zgartiring)
@@ -14,16 +15,33 @@
 app = 'gulf-hr'
 primary_region = 'ams'
 
+# SIGINT — aiogram long-polling'ni toza to'xtatadi (bot nomzod
+# yozishmalari tugagach chiqadi).
+kill_signal = 'SIGINT'
+kill_timeout = '10s'
+
 [build]
 
 [env]
   TZ = 'Asia/Tashkent'
   LOG_LEVEL = 'INFO'
 
-# SIGINT — aiogram long-polling'ni toza to'xtatadi (bot nomzod
-# yozishmalari tugagach chiqadi).
-kill_signal = 'SIGINT'
-kill_timeout = '10s'
+# Telegram bot HTTP so'rov qabul qilmaydi, lekin Fly proxy liveness tekshiruvi
+# uchun /health endpoint'ga ega. Botni auto-stop qilish mumkin emas: Telegram
+# long polling doimiy ishlaydigan jarayon.
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = '15s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/health'
 
 # SQLite bazasi (/app/data/gulf_hr.db) doimiy volume'da saqlanadi —
 # deploy'dan keyin ham arizalar va /stats analitikasi yo'qolmaydi.

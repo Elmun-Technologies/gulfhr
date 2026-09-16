@@ -1,5 +1,10 @@
 # Gulf HR botini Fly.io'ga deploy qilish — bosqichma-bosqich
 
+Bot Telegram'dan **long-polling** orqali update oladi. Fly proxy uchun ilova
+ichida faqat `/health` endpoint tinglaydi; bu endpoint bot API'si emas.
+`fly.toml` dagi `auto_stop_machines = 'off'` sozlamasini olib tashlamang —
+aks holda Fly idling deb hisoblab, Telegram polling jarayonini to'xtatishi mumkin.
+
 > **Vercel nima uchun ishlamagan edi?** Bu bot — Telegram **long-polling**
 > boti: u 24/7 doimiy ishlab turadigan jarayon. Vercel esa **serverless**
 > veb-platforma — u `app/main.py`'dan veb-ilova (`app` / `application` /
@@ -107,7 +112,18 @@ Loglarda quyidagilarni ko'rasiz:
 
 ```
 Gulf HR bot ishga tushmoqda...
-Baza tayyor: sqlite
+Baza tayyor: sqlite+aiosqlite
+FSM bazasi tayyor: ./data/fsm.db ...
+Health server tinglamoqda: 0.0.0.0:8080
+```
+
+Fly deploy paytida `The app is not listening on 0.0.0.0:8080` degan warning
+chiqsa, lokal `fly.toml` dagi qo'lda kiritilgan eski o'zgarishlar asosiy
+faylni bosib ketgan bo'ladi. Ularni tiklang va qayta deploy qiling:
+
+```bash
+git restore fly.toml
+fly deploy
 ```
 
 Telegram'da botga `/start` yozib sinang — ariza oqimi boshlanishi kerak.
