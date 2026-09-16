@@ -6,6 +6,8 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class ApplicationStates(StatesGroup):
+    # 0. Til tanlash — /start dan keyingi birinchi qadam
+    language = State()
     full_name = State()
     gender = State()
     age = State()

@@ -15,7 +15,11 @@ class Application(Base):
     """Vakansiya uchun nomzod arizasi — Telegram orqali yig'iladi."""
 
     __tablename__ = "applications"
-    __table_args__ = (Index("ix_application_created", "created_at"),)
+    __table_args__ = (
+        Index("ix_application_created", "created_at"),
+        # /stats hisoboti `is_qualified` bo'yicha sanaydi — indeks bilan tezroq
+        Index("ix_application_qualified", "is_qualified"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -32,6 +36,10 @@ class Application(Base):
     # Yuborilgan rezume faylining Telegram file_id si (HR guruhiga forward uchun)
     resume_file_kind: Mapped[str | None] = mapped_column(String(16))  # voice|audio|document
     resume_file_id: Mapped[str | None] = mapped_column(String(255))
+
+    # Nomzod tanlagan suhbat tili ("uz" | "ru") — HR qaysi tilda qo'ng'iroq
+    # qilishni bilishi uchun kartada ko'rsatiladi
+    language: Mapped[str] = mapped_column(String(8), default="", server_default="")
 
     telegram_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
     telegram_username: Mapped[str | None] = mapped_column(String(64))

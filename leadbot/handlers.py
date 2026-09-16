@@ -7,9 +7,10 @@ import re
 from datetime import UTC, datetime
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InaccessibleMessage, Message
 
 from leadbot import texts
 from leadbot.config import LeadBotSettings, get_leadbot_settings
@@ -36,6 +37,71 @@ def _normalize_phone(raw: str) -> str | None:
     if not digits.startswith("+"):
         digits = f"+{digits}" if len(digits) > 9 else f"+998{digits}"
     return digits
+
+
+# Tugma o'rniga yozib yuborilgan javoblar (nomzod tugmani bosmasa ham
+# suhbat to'xtab qolmasligi uchun)
+_YES_TOKENS = {"ha", "xa", "haa", "yes", "да", "ага", "ok", "ок"}
+_NO_TOKENS = {"yo'q", "yoq", "yo", "no", "нет", "не"}
+_MALE_TOKENS = {"erkak", "m", "male", "мужской", "мужчина", "м"}
+_FEMALE_TOKENS = {"ayol", "f", "female", "женский", "женщина", "ж"}
+_TOKEN_CLEAN_RE = re.compile(r"[^\w'’]+")
+
+
+def _token(raw: str) -> str:
+    return _TOKEN_CLEAN_RE.sub("", (raw or "").strip().lower()).replace("’", "'")
+
+
+def _parse_yes_no(raw: str) -> bool | None:
+    token = _token(raw)
+    if token in _YES_TOKENS:
+        return True
+    if token in _NO_TOKENS:
+        return False
+    return None
+
+
+def _parse_gender(raw: str) -> str | None:
+    token = _token(raw)
+    if token in _MALE_TOKENS:
+        return "male"
+    if token in _FEMALE_TOKENS:
+        return "female"
+    return None
+
+
+async def _answer_callback(callback: CallbackQuery) -> None:
+    """Tugma 'soat'ini darhol o'chiradi; callback eskirgan bo'lsa ham oqim davom etadi."""
+    try:
+        await callback.answer()
+    except TelegramBadRequest as exc:
+        logger.debug("callback.answer bajarilmadi: %s", exc)
+
+
+async def _drop_inline_keyboard(callback: CallbackQuery) -> None:
+    """Bosilgan tugmalarni oladi — Telegram xatosi oqimni uzmaydi."""
+    message = callback.message
+    if message is None or isinstance(message, InaccessibleMessage):
+        return
+    try:
+        await message.edit_reply_markup(reply_markup=None)
+    except TelegramBadRequest as exc:
+        logger.debug("Klaviaturani o'chirib bo'lmadi: %s", exc)
+
+
+async def _reask(message: Message, state: FSMContext) -> None:
+    """Kutilmagan xabar kelsa joriy savolni qayta so'raydi (bot jim qolmaydi)."""
+    current = await state.get_state()
+    prompts = {
+        Application.full_name.state: (texts.ASK_FULL_NAME, None),
+        Application.gender.state: (texts.ASK_GENDER, GENDER_KB),
+        Application.age.state: (texts.ASK_AGE, None),
+        Application.city.state: (texts.ASK_CITY, YES_NO_KB),
+        Application.phone.state: (texts.ASK_PHONE, CONTACT_KB),
+        Application.experience.state: (texts.ASK_EXPERIENCE, RESUME_SKIP_KB),
+    }
+    text, markup = prompts.get(current or "", (texts.ASK_FULL_NAME, None))
+    await message.answer(text, reply_markup=markup)
 
 
 @router.message(CommandStart())
@@ -108,17 +174,30 @@ async def on_full_name(message: Message, state: FSMContext) -> None:
 # ─── 2. Jins ─────────────────────────────────────────────────────────
 
 
+async def _set_gender(target: Message, state: FSMContext, gender: str) -> None:
+    await state.update_data(gender=gender)
+    await target.answer(texts.ASK_AGE)
+    await state.set_state(Application.age)
+
+
 @router.callback_query(Application.gender, F.data.startswith("gender:"))
 async def on_gender(callback: CallbackQuery, state: FSMContext) -> None:
     gender = callback.data.split(":", 1)[1]
+    await _answer_callback(callback)
     if gender not in ("male", "female"):
-        await callback.answer()
+        await _reask(callback.message, state)
         return
-    await state.update_data(gender=gender)
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.message.answer(texts.ASK_AGE)
-    await state.set_state(Application.age)
-    await callback.answer()
+    await _drop_inline_keyboard(callback)
+    await _set_gender(callback.message, state, gender)
+
+
+@router.message(Application.gender, F.text)
+async def on_gender_text(message: Message, state: FSMContext) -> None:
+    gender = _parse_gender(message.text or "")
+    if gender is None:
+        await _reask(message, state)
+        return
+    await _set_gender(message, state, gender)
 
 
 # ─── 3. Yosh ─────────────────────────────────────────────────────────
@@ -138,13 +217,26 @@ async def on_age(message: Message, state: FSMContext) -> None:
 # ─── 4. Shahar ───────────────────────────────────────────────────────
 
 
+async def _set_city(target: Message, state: FSMContext, lives_in_city: bool) -> None:
+    await state.update_data(lives_in_city=lives_in_city)
+    await target.answer(texts.ASK_PHONE, reply_markup=CONTACT_KB)
+    await state.set_state(Application.phone)
+
+
 @router.callback_query(Application.city, F.data.in_({"yes", "no"}))
 async def on_city(callback: CallbackQuery, state: FSMContext) -> None:
-    await state.update_data(lives_in_city=callback.data == "yes")
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.message.answer(texts.ASK_PHONE, reply_markup=CONTACT_KB)
-    await state.set_state(Application.phone)
-    await callback.answer()
+    await _answer_callback(callback)
+    await _drop_inline_keyboard(callback)
+    await _set_city(callback.message, state, callback.data == "yes")
+
+
+@router.message(Application.city, F.text)
+async def on_city_text(message: Message, state: FSMContext) -> None:
+    value = _parse_yes_no(message.text or "")
+    if value is None:
+        await _reask(message, state)
+        return
+    await _set_city(message, state, value)
 
 
 # ─── 5. Telefon ──────────────────────────────────────────────────────
@@ -183,9 +275,9 @@ async def _ask_experience(message: Message, state: FSMContext) -> None:
 
 @router.callback_query(Application.experience, F.data == "skip_resume")
 async def on_experience_skip(callback: CallbackQuery, state: FSMContext) -> None:
+    await _answer_callback(callback)
     await state.update_data(experience="", resume_info="")
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.answer()
+    await _drop_inline_keyboard(callback)
     await _finish_application(callback, state)
 
 
@@ -221,6 +313,16 @@ async def on_experience_text(message: Message, state: FSMContext) -> None:
         return
     await state.update_data(experience=experience, resume_info="")
     await _finish_application_msg(message, state)
+
+
+# ─── Kutilmagan xabar: hech bir bosqichda jim qolmaslik ────────────────
+# Router'ning oxirida turishi shart — aks holda aniq handlerlarni to'sadi.
+
+
+@router.message(StateFilter(Application))
+async def on_unexpected(message: Message, state: FSMContext) -> None:
+    """Rasm/stiker yoki mos kelmagan javob kelsa savolni qayta so'raymiz."""
+    await _reask(message, state)
 
 
 # ─── Yakunlash ───────────────────────────────────────────────────────

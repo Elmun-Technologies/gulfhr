@@ -13,12 +13,21 @@ from app.candidates.texts import (
     GENDER_LABELS,
     GROUP_HEADER_NOT_QUALIFIED,
     GROUP_HEADER_QUALIFIED,
+    LANGUAGE_LABELS,
 )
 from app.config import Settings
 from app.db.models import Application
 from app.db.session import session_scope
 
 logger = logging.getLogger(__name__)
+
+# /stats hisobotida rad etish sabablari shu tartibda sanaladi
+REJECT_CODE_LABELS = {
+    "age": "Yosh chegarasidan tashqari",
+    "city": "{city}da yashamaydi",
+    "russian": "Rus tilini bilmaydi",
+}
+RECENT_LIMIT = 10
 
 
 async def save_application(
@@ -43,6 +52,7 @@ async def save_application(
             resume_info=answers.resume_info,
             resume_file_kind=resume_file_kind,
             resume_file_id=resume_file_id,
+            language=answers.language,
             telegram_id=telegram_id,
             telegram_username=telegram_username,
             is_qualified=verdict.is_qualified,
@@ -69,6 +79,7 @@ def build_group_card(
     gender_label = GENDER_LABELS.get(answers.gender, "—")
     resume_label = answers.resume_info if answers.resume_info else "Yuborilmagan"
     russian_label = "Ha" if answers.knows_russian else "Yo'q"
+    language_label = LANGUAGE_LABELS.get(answers.language, "—")
     telegram_line = "💬 Telegram: —"
     if telegram_username or telegram_id is not None:
         username = f"@{telegram_username}" if telegram_username else "—"
@@ -82,6 +93,7 @@ def build_group_card(
         f"⚧ Jins: {gender_label}",
         f"🎂 Yosh: {answers.age}",
         f"🗣 Rus tili: {russian_label}",
+        f"🌐 Suhbat tili: {language_label}",
         f"📞 Telefon: {answers.phone}",
         f"💼 Staj: {answers.experience if answers.experience else '—'}",
         f"📎 Rezume: {resume_label}",
@@ -146,7 +158,11 @@ async def notify_hr_group(
 
 
 async def build_candidates_report(settings: Settings) -> str:
-    """Umumiy analitika hisoboti (HTML matn) — /stats buyrug'i uchun."""
+    """/stats uchun analitika hisoboti (HTML matn).
+
+    Barcha jamlanmalar SQL'da hisoblanadi — jadval Python'ga yuklanmaydi,
+    shuning uchun arizalar soni oshsa ham hisobot tez chiqadi.
+    """
     tz = settings.timezone
     now = datetime.now(tz)
     today_local = now.date()
@@ -179,29 +195,40 @@ async def build_candidates_report(settings: Settings) -> str:
                 )
             )
         ).scalar_one()
-        rows = (
-            (
+
+        # Rad etish sabablari SQL'da sanaladi — oldingi versiya 1000 ta satrni
+        # Python'ga yuklab, u yerda sanardi (arizalar ko'paygani sari /stats
+        # sekinlashar edi). Chegaralangan LIKE so'rovi jadvalni to'liq o'qimaydi.
+        reject_counts: dict[str, int] = {}
+        for code in REJECT_CODE_LABELS:
+            count = (
                 await session.execute(
-                    select(Application)
-                    .order_by(Application.created_at.desc(), Application.id.desc())
-                    .limit(1000)
+                    select(func.count(Application.id)).where(
+                        ("," + Application.reject_codes + ",").like(f"%,{code},%")
+                    )
                 )
+            ).scalar_one()
+            if count:
+                reject_counts[code] = count
+
+        rows = (
+            await session.execute(
+                select(
+                    Application.full_name,
+                    Application.gender,
+                    Application.age,
+                    Application.is_qualified,
+                )
+                .order_by(Application.created_at.desc(), Application.id.desc())
+                .limit(RECENT_LIMIT)
             )
-            .scalars()
-            .all()
-        )
+        ).all()
 
     rejected = total - qualified
     city = settings.candidate_city
 
-    reject_counts: dict[str, int] = {}
-    for r in rows:
-        for code in (r.reject_codes or "").split(","):
-            if code:
-                reject_counts[code] = reject_counts.get(code, 0) + 1
-
     recent_lines: list[str] = []
-    for r in rows[:10]:
+    for r in rows:
         mark = "🟢" if r.is_qualified else "🔴"
         gender_label = GENDER_LABELS.get(r.gender or "", "")
         gender_str = f" ({gender_label})" if gender_label else ""
@@ -217,18 +244,13 @@ async def build_candidates_report(settings: Settings) -> str:
     ]
 
     if reject_counts:
-        labels = {
-            "age": "Yosh chegarasidan tashqari",
-            "city": f"{city}da yashamaydi",
-            "russian": "Rus tilini bilmaydi",
-        }
         lines.append("🚫 <b>Rad etish sabablari:</b>")
         for code, cnt in sorted(reject_counts.items(), key=lambda x: -x[1]):
-            lines.append(f"• {labels.get(code, code)}: {cnt}")
+            lines.append(f"• {REJECT_CODE_LABELS.get(code, code).format(city=city)}: {cnt}")
         lines.append("")
 
     if recent_lines:
-        lines.append("🕘 <b>Oxirgi 10 nomzod:</b>")
+        lines.append(f"🕘 <b>Oxirgi {RECENT_LIMIT} nomzod:</b>")
         lines.extend(recent_lines)
 
     return "\n".join(lines)
