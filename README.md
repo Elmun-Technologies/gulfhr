@@ -176,6 +176,11 @@ tests/          pytest testlari
 
 ## ⚡ Tezlik
 
+Telegram update'lari long polling orqali olinadi. Fly.io uchun ilova ichida
+`/health` liveness endpoint ham `0.0.0.0:8080` da ishlaydi; bu endpoint botning
+foydalanuvchi API'si emas. `fly.toml` da `auto_stop_machines = 'off'` qolishi
+shart, chunki Telegram polling doimiy jarayon.
+
 Nomzod sezadigan kechikish asosan Telegram API chaqiruvlari soniga bog'liq:
 
 - Salomlashuv va birinchi savol **bitta xabarda** yuboriladi (oldingi versiyada
